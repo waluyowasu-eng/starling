@@ -1,5 +1,5 @@
 > [!IMPORTANT]
-> **Discord:** join Modrizon, the working server for the mod API effort (mod developers, testers, contributors): [discord.gg/j5qs5tZTrZ](https://discord.gg/j5qs5tZTrZ). A side room for modding work; Horizon's own server stays the place for the game.
+> **Discord:** join Modrizon, the working server for the mod API effort (mod developers, testers, contributors): [discord.gg/j5qs5tZTrZ](https://discord.gg/j5qs5tZTrZ). A side room for modding work; Horizon's own server stays the place for the game. 
 >
 > **This is arismoko/horizon, a fork of [horizon-rust/horizon](https://github.com/horizon-rust/horizon) for modding work. It is not the official Horizon repository.**
 >
