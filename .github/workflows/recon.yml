@@ -1,0 +1,76 @@
+name: recon
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  recon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect attack and shield code
+        run: |
+          mkdir -p out
+          O=out/attack-gate.txt
+          echo "branch: $(git rev-parse --abbrev-ref HEAD)  commit: $(git rev-parse --short HEAD)" > "$O"
+          echo "" >> "$O"
+          echo "## candidate files" >> "$O"
+          find crates -name target -prune -o \( -name 'shield.rs' -o -name 'melee.rs' -o -name 'using_item.rs' -o -name 'use_hand.rs' -o -name 'combat.rs' -o -name 'game.rs' \) -print >> "$O" 2>/dev/null || true
+          python3 - <<'PY' >> "$O"
+          import os, re
+          pat_a = re.compile(r'attack', re.I)
+          pat_b = re.compile(r'using|blocking|shield', re.I)
+          pat_c = re.compile(r'if |return|&&|\|\||continue|consume')
+          out = []
+          for root, dirs, files in os.walk('crates'):
+              dirs[:] = [d for d in dirs if d not in ('target', 'tests', '.git')]
+              for f in files:
+                  if not f.endswith('.rs') or f.endswith('_tests.rs') or f.startswith('test'):
+                      continue
+                  p = os.path.join(root, f)
+                  try:
+                      lines = open(p, encoding='utf-8', errors='ignore').read().split('\n')
+                  except Exception:
+                      continue
+                  i = 0
+                  while i < len(lines):
+                      if pat_a.search(lines[i]) and re.search(r'fn |if |click|key|press|input|down', lines[i], re.I):
+                          lo = max(0, i - 8)
+                          hi = min(len(lines), i + 9)
+                          win = lines[lo:hi]
+                          if any(pat_b.search(x) for x in win) and pat_c.search(' '.join(win)):
+                              out.append('--- %s:%d' % (p, i + 1))
+                              out.extend('%d: %s' % (lo + j + 1, x) for j, x in enumerate(win))
+                              i = hi
+                              continue
+                      i += 1
+                  if len(out) > 1400:
+                      break
+              if len(out) > 1400:
+                  break
+          print('')
+          print('## attack lines near using/blocking/shield conditions')
+          print('\n'.join(out[:1400]))
+          PY
+          for f in $(find crates -name melee.rs -o -name shield.rs | head -4); do
+            echo "" >> "$O"
+            echo "## head of $f" >> "$O"
+            sed -n '1,140p' "$f" >> "$O"
+          done
+          wc -l "$O"
+
+      - name: Publish result on its own branch
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd out
+          git init -q
+          git checkout -q -b recon-output
+          git add attack-gate.txt
+          git -c user.name=recon -c user.email=recon@example.com commit -qm "recon output"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" recon-output
+          echo "https://github.com/${GITHUB_REPOSITORY}/blob/recon-output/attack-gate.txt"
